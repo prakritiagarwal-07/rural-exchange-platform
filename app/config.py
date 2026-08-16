@@ -9,5 +9,9 @@ class Config:
     # If your DATABASE_URL starts with 'mysql://', replace it with 'mysql+pymysql://'
     if SQLALCHEMY_DATABASE_URI and SQLALCHEMY_DATABASE_URI.startswith('mysql://'):
         SQLALCHEMY_DATABASE_URI = SQLALCHEMY_DATABASE_URI.replace('mysql://', 'mysql+pymysql://', 1)
+
+    # Normalize postgres URI from providers that use 'postgres://' to SQLAlchemy's format
+    if SQLALCHEMY_DATABASE_URI and SQLALCHEMY_DATABASE_URI.startswith('postgres://'):
+        SQLALCHEMY_DATABASE_URI = SQLALCHEMY_DATABASE_URI.replace('postgres://', 'postgresql+psycopg2://', 1)
     
     SQLALCHEMY_TRACK_MODIFICATIONS = False
