@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="max-w-7xl mx-auto">
+    <h1 class="text-3xl font-bold text-blue-600 mb-6">🏭 {{ t('buyer_dashboard') }}</h1>
+
+    <div id="userInfo" class="bg-white p-4 rounded-lg shadow mb-6"></div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
+            <h2 class="text-xl font-semibold mb-4">🌾 {{ t('find_crop_residue') }}</h2>
+            <div class="flex gap-2">
+                <input type="text" id="residueType" placeholder="{{ t('residue_type') }}" class="flex-1 p-2 border rounded-lg">
+                <button onclick="searchResidue()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition">{{ t('search') }}</button>
+            </div>
+            <p id="locationStatus" class="text-xs text-gray-500 mt-1"></p>
+            <div id="residueResults" class="mt-4 space-y-3 max-h-96 overflow-y-auto"></div>
+        </div>
+
+        <div class="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-semibold">📦 {{ t('my_orders') }}</h2>
+                <button onclick="loadOrders()" class="text-sm bg-gray-200 hover:bg-gray-300 px-3 py-1 rounded">{{ t('refresh') }}</button>
+            </div>
+            <div id="myOrders" class="space-y-3 max-h-96 overflow-y-auto"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let userLocation = null;
+
+    async function loadUser() {
+        const res = await fetch('/api/auth/me');
+        if (!res.ok) { window.location.href = '/login'; return; }
+        const user = await res.json();
+        userLocation = user.location_lat && user.location_lng 
+            ? { lat: user.location_lat, lng: user.location_lng } 
+            : null;
+        document.getElementById('userInfo').innerHTML = `
+            <p class="font-medium">${t('welcome')}, <span class="text-blue-600">${user.full_name}</span>! (${t('buyer')})</p>
+            <p class="text-xs text-gray-500">${userLocation ? `📍 ${userLocation.lat}, ${userLocation.lng}` : '📍 ' + t('set_location')}</p>
+        `;
+        document.getElementById('locationStatus').innerText = userLocation ? '📍 ' + t('showing_nearby') : '📍 ' + t('set_location');
+    }
+
+    async function searchResidue() {
+        const type = document.getElementById('residueType').value;
+        let url = `/api/residue/?type=${type}`;
+        if (userLocation) {
+            url += `&lat=${userLocation.lat}&lng=${userLocation.lng}&sort=distance&radius=50`;
+        }
+        const res = await fetch(url);
+        const data = await res.json();
+        const container = document.getElementById('residueResults');
+        if (data.length === 0) { container.innerHTML = `<p class="text-gray-500">${t('no_residue_listings')}</p>`; return; }
+        container.innerHTML = data.map(l => {
+            const dist = l.distance !== null ? `${l.distance.toFixed(1)} ${t('km')}` : t('unknown_distance');
+            return `
+            <div class="border p-4 rounded-lg hover:shadow-md transition">
+                <div class="flex justify-between">
+                    <div>
+                        <h4 class="font-bold">${l.residue_type}</h4>
+                        <p class="text-sm">${l.quantity_kg} kg | ₹${l.price_per_kg}/kg</p>
+                        <p class="text-xs text-gray-500">${t('seller')}: ${l.farmer_name} (${dist})</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <input type="number" id="qty_${l.id}" placeholder="${t('qty')}" class="w-20 p-1 border rounded text-sm">
+                        <button onclick="placeOrder(${l.id})" class="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm transition">${t('buy')}</button>
+                    </div>
+                </div>
+            </div>
+        `}).join('');
+    }
+
+    async function placeOrder(id) {
+        const qty = document.getElementById(`qty_${id}`).value;
+        if (!qty || qty <= 0) { alert('Enter quantity'); return; }
+        const res = await fetch(`/api/residue/${id}/order`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({quantity_kg: qty})
+        });
+        const data = await res.json();
+        alert(data.message || data.error);
+        if (res.ok) loadOrders();
+    }
+
+    async function loadOrders() {
+        const res = await fetch('/api/residue/orders');
+        const data = await res.json();
+        const container = document.getElementById('myOrders');
+        if (data.length === 0) { container.innerHTML = `<p class="text-gray-500">${t('no_orders')}</p>`; return; }
+        container.innerHTML = data.map(o => `
+            <div class="border-l-4 ${o.status === 'pending' ? 'border-yellow-400' : 'border-green-400'} bg-gray-50 p-3 rounded-r-lg">
+                <p class="font-semibold">${o.residue_type}</p>
+                <p class="text-sm">${o.quantity_kg} kg | ₹${o.total_price}</p>
+                <p class="text-xs font-bold ${o.status === 'pending' ? 'text-yellow-600' : 'text-green-600'}">${o.status}</p>
+            </div>
+        `).join('');
+    }
+
+    window.onload = () => { loadUser(); loadOrders(); };
+</script>
+{% endblock %}

@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="max-w-lg mx-auto bg-white p-8 rounded-xl shadow-lg mt-10">
+    <h2 class="text-2xl font-bold mb-6">👤 {{ t('edit_profile') }}</h2>
+    <div id="msg" class="mb-4 text-sm hidden"></div>
+    <form id="profileForm" class="space-y-3">
+        <input type="text" id="full_name" placeholder="{{ t('full_name') }}" class="w-full p-2 border rounded-lg" required>
+        <input type="text" id="phone" placeholder="{{ t('phone') }}" class="w-full p-2 border rounded-lg">
+        <textarea id="address" placeholder="{{ t('address') }}" class="w-full p-2 border rounded-lg"></textarea>
+        <div class="grid grid-cols-3 gap-2">
+            <input type="text" id="country" placeholder="{{ t('country') }}" class="w-full p-2 border rounded-lg">
+            <input type="text" id="state" placeholder="{{ t('state') }}" class="w-full p-2 border rounded-lg">
+            <input type="text" id="city" placeholder="{{ t('city') }}" class="w-full p-2 border rounded-lg">
+        </div>
+        <input type="hidden" id="location_lat">
+        <input type="hidden" id="location_lng">
+        <div id="geoStatus" class="text-xs text-gray-500 mb-2"></div>
+        <button type="button" onclick="fetchCoordinates()" class="w-full bg-gray-200 hover:bg-gray-300 text-gray-800 p-2 rounded-lg transition mb-2">
+            🌍 {{ t('get_coordinates') }}
+        </button>
+        <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-lg font-semibold transition">{{ t('update_profile') }}</button>
+    </form>
+</div>
+
+<script>
+    async function loadProfile() {
+        const res = await fetch('/api/auth/me');
+        if (!res.ok) { window.location.href = '/login'; return; }
+        const user = await res.json();
+        document.getElementById('full_name').value = user.full_name || '';
+        document.getElementById('phone').value = user.phone || '';
+        document.getElementById('address').value = user.address || '';
+        document.getElementById('location_lat').value = user.location_lat || '';
+        document.getElementById('location_lng').value = user.location_lng || '';
+        // Optionally fill country/state/city from address (parse)
+    }
+
+    async function fetchCoordinates() {
+        const country = document.getElementById('country').value.trim();
+        const state = document.getElementById('state').value.trim();
+        const city = document.getElementById('city').value.trim();
+        const status = document.getElementById('geoStatus');
+        if (!country || !city) {
+            status.innerText = t('enter_location');
+            status.style.color = 'orange';
+            return;
+        }
+        const query = `${city}, ${state ? state + ', ' : ''}${country}`;
+        status.innerText = t('searching_coords');
+        status.style.color = 'blue';
+        try {
+            const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`;
+            const res = await fetch(url);
+            const data = await res.json();
+            if (data && data.length > 0) {
+                document.getElementById('location_lat').value = data[0].lat;
+                document.getElementById('location_lng').value = data[0].lon;
+                status.innerText = t('coords_found');
+                status.style.color = 'green';
+                if (!document.getElementById('address').value) {
+                    document.getElementById('address').value = data[0].display_name;
+                }
+            } else {
+                status.innerText = t('coords_not_found');
+                status.style.color = 'red';
+            }
+        } catch (err) {
+            status.innerText = t('network_error');
+            status.style.color = 'red';
+        }
+    }
+
+    document.getElementById('profileForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const msg = document.getElementById('msg');
+        msg.classList.add('hidden');
+        let lat = document.getElementById('location_lat').value;
+        let lng = document.getElementById('location_lng').value;
+        if (!lat || !lng) {
+            await fetchCoordinates();
+            lat = document.getElementById('location_lat').value;
+            lng = document.getElementById('location_lng').value;
+        }
+        if (!lat || !lng) {
+            msg.innerText = t('enter_location');
+            msg.className = 'mb-4 text-sm text-red-600 block';
+            return;
+        }
+        const data = {
+            full_name: document.getElementById('full_name').value,
+            phone: document.getElementById('phone').value,
+            address: document.getElementById('address').value || `${document.getElementById('city').value}, ${document.getElementById('state').value || ''}, ${document.getElementById('country').value}`,
+            location_lat: parseFloat(lat),
+            location_lng: parseFloat(lng)
+        };
+        try {
+            const res = await fetch('/api/auth/update-profile', {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            });
+            const result = await res.json();
+            msg.className = 'mb-4 text-sm block';
+            if (res.ok) {
+                msg.className += ' text-green-600';
+                msg.innerText = '✅ ' + (result.message || t('profile_updated'));
+            } else {
+                msg.className += ' text-red-600';
+                msg.innerText = '❌ ' + (result.error || t('update_failed'));
+            }
+        } catch (err) {
+            msg.className = 'mb-4 text-sm text-red-600 block';
+            msg.innerText = t('network_error');
+        }
+    });
+
+    window.onload = loadProfile;
+</script>
+{% endblock %}

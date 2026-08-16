@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="max-w-7xl mx-auto">
+    <h1 class="text-3xl font-bold text-red-600 mb-6">🛡️ {{ t('admin_dashboard') }}</h1>
+
+    <div id="userInfo" class="bg-white p-4 rounded-lg shadow mb-6"></div>
+
+    <div class="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-xl font-semibold">📊 {{ t('platform_statistics') }}</h2>
+            <button onclick="loadStats()" class="bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded-lg transition">{{ t('refresh') }}</button>
+        </div>
+        <div id="statsGrid" class="grid grid-cols-2 md:grid-cols-4 gap-4"></div>
+    </div>
+</div>
+
+<script>
+    async function loadUser() {
+        const res = await fetch('/api/auth/me');
+        if (!res.ok) { window.location.href = '/login'; return; }
+        const user = await res.json();
+        document.getElementById('userInfo').innerHTML = `<p class="font-medium">${t('welcome')}, <span class="text-red-600">${user.full_name}</span>! (${t('admin')})</p>`;
+        loadStats();
+    }
+
+    async function loadStats() {
+        const res = await fetch('/api/admin/stats');
+        const data = await res.json();
+        const container = document.getElementById('statsGrid');
+        container.innerHTML = `
+            <div class="bg-green-50 p-4 rounded-lg text-center border border-green-200">
+                <p class="text-3xl font-bold text-green-600">${data.users}</p>
+                <p class="text-sm text-gray-600">${t('total_users')}</p>
+            </div>
+            <div class="bg-blue-50 p-4 rounded-lg text-center border border-blue-200">
+                <p class="text-3xl font-bold text-blue-600">${data.machinery}</p>
+                <p class="text-sm text-gray-600">${t('total_machinery')}</p>
+            </div>
+            <div class="bg-yellow-50 p-4 rounded-lg text-center border border-yellow-200">
+                <p class="text-3xl font-bold text-yellow-600">${data.bookings}</p>
+                <p class="text-sm text-gray-600">${t('total_bookings')}</p>
+            </div>
+            <div class="bg-purple-50 p-4 rounded-lg text-center border border-purple-200">
+                <p class="text-3xl font-bold text-purple-600">${data.residue_listings}</p>
+                <p class="text-sm text-gray-600">${t('total_residue_listings')}</p>
+            </div>
+        `;
+    }
+
+    window.onload = loadUser;
+</script>
+{% endblock %}

@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="max-w-md mx-auto bg-white p-8 rounded shadow mt-10">
+    <h2 class="text-2xl font-bold mb-4">{{ t('register') }}</h2>
+    <div id="error" class="text-red-500 mb-2 hidden"></div>
+    <div id="success" class="text-green-500 mb-2 hidden"></div>
+    <form id="registerForm">
+        <input type="text" id="full_name" placeholder="{{ t('full_name') }}" class="w-full p-2 border rounded mb-2" required>
+        <input type="email" id="email" placeholder="{{ t('email') }}" class="w-full p-2 border rounded mb-2" required>
+        <input type="password" id="password" placeholder="{{ t('password') }}" class="w-full p-2 border rounded mb-2" required>
+        <input type="text" id="phone" placeholder="{{ t('phone') }}" class="w-full p-2 border rounded mb-2">
+        <div class="grid grid-cols-3 gap-2 mb-2">
+            <input type="text" id="country" placeholder="{{ t('country') }}" class="w-full p-2 border rounded">
+            <input type="text" id="state" placeholder="{{ t('state') }}" class="w-full p-2 border rounded">
+            <input type="text" id="city" placeholder="{{ t('city') }}" class="w-full p-2 border rounded">
+        </div>
+        <div id="geoStatus" class="text-xs text-gray-500 mb-2"></div>
+        <input type="hidden" id="location_lat">
+        <input type="hidden" id="location_lng">
+        <button type="button" onclick="fetchCoordinates()" class="w-full bg-gray-200 hover:bg-gray-300 text-gray-700 p-2 rounded mb-2 text-sm transition">
+            🌍 {{ t('get_coordinates') }}
+        </button>
+        <select id="role" class="w-full p-2 border rounded mb-4">
+            <option value="farmer">{{ t('farmer') }}</option>
+            <option value="owner">{{ t('owner') }}</option>
+            <option value="buyer">{{ t('buyer') }}</option>
+            <option value="admin">{{ t('admin') }}</option>
+        </select>
+        <button type="submit" class="w-full bg-green-500 text-white p-2 rounded hover:bg-green-600">{{ t('register') }}</button>
+    </form>
+    <p class="mt-4 text-sm">{{ t('already_account') }} <a href="/login" class="text-blue-500">{{ t('login') }}</a></p>
+</div>
+
+<script>
+    async function fetchCoordinates() {
+        const country = document.getElementById('country').value.trim();
+        const state = document.getElementById('state').value.trim();
+        const city = document.getElementById('city').value.trim();
+        const status = document.getElementById('geoStatus');
+        if (!country || !city) {
+            status.innerText = t('enter_location');
+            status.style.color = 'orange';
+            return;
+        }
+        const query = `${city}, ${state ? state + ', ' : ''}${country}`;
+        status.innerText = t('searching_coords');
+        status.style.color = 'blue';
+        try {
+            const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`;
+            const res = await fetch(url);
+            const data = await res.json();
+            if (data && data.length > 0) {
+                document.getElementById('location_lat').value = data[0].lat;
+                document.getElementById('location_lng').value = data[0].lon;
+                status.innerText = t('coords_found');
+                status.style.color = 'green';
+            } else {
+                status.innerText = t('coords_not_found');
+                status.style.color = 'red';
+            }
+        } catch (err) {
+            status.innerText = t('network_error');
+            status.style.color = 'red';
+        }
+    }
+
+    document.getElementById('registerForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const errorDiv = document.getElementById('error');
+        const successDiv = document.getElementById('success');
+        errorDiv.classList.add('hidden');
+        successDiv.classList.add('hidden');
+
+        let lat = document.getElementById('location_lat').value;
+        let lng = document.getElementById('location_lng').value;
+        if (!lat || !lng) {
+            await fetchCoordinates();
+            lat = document.getElementById('location_lat').value;
+            lng = document.getElementById('location_lng').value;
+        }
+
+        const data = {
+            full_name: document.getElementById('full_name').value.trim(),
+            email: document.getElementById('email').value.trim(),
+            password: document.getElementById('password').value,
+            phone: document.getElementById('phone').value.trim(),
+            role: document.getElementById('role').value,
+            location_lat: lat ? parseFloat(lat) : null,
+            location_lng: lng ? parseFloat(lng) : null,
+            address: `${document.getElementById('city').value || ''}, ${document.getElementById('state').value || ''}, ${document.getElementById('country').value || ''}`
+        };
+
+        try {
+            const res = await fetch('/api/auth/register', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            });
+            const result = await res.json();
+            if (res.ok) {
+                successDiv.innerText = t('register_success');
+                successDiv.classList.remove('hidden');
+                setTimeout(() => { window.location.href = '/login'; }, 1500);
+            } else {
+                errorDiv.innerText = result.error || 'Registration failed';
+                errorDiv.classList.remove('hidden');
+            }
+        } catch (err) {
+            errorDiv.innerText = t('network_error');
+            errorDiv.classList.remove('hidden');
+        }
+    });
+</script>
+{% endblock %}

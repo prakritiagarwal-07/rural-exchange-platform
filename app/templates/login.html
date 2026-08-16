@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="max-w-md mx-auto bg-white p-8 rounded shadow mt-10">
+    <h2 class="text-2xl font-bold mb-4">{{ t('login') }}</h2>
+    <div id="error" class="text-red-500 mb-2 hidden"></div>
+    <form id="loginForm">
+        <input type="email" id="email" placeholder="{{ t('email') }}" class="w-full p-2 border rounded mb-2" required>
+        <input type="password" id="password" placeholder="{{ t('password') }}" class="w-full p-2 border rounded mb-4" required>
+        <button type="submit" class="w-full bg-blue-500 text-white p-2 rounded hover:bg-blue-600">{{ t('login') }}</button>
+    </form>
+    <p class="mt-4 text-sm">{{ t('no_account') }} <a href="/register" class="text-blue-500">{{ t('register') }}</a></p>
+</div>
+<script>
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        const errorDiv = document.getElementById('error');
+        errorDiv.classList.add('hidden');
+        try {
+            const res = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({email, password})
+            });
+            const data = await res.json();
+            if (res.ok) {
+                const role = data.user.role;
+                if (role === 'farmer') window.location.href = '/farmer-dashboard';
+                else if (role === 'owner') window.location.href = '/owner-dashboard';
+                else if (role === 'buyer') window.location.href = '/buyer-dashboard';
+                else if (role === 'admin') window.location.href = '/admin-dashboard';
+                else window.location.href = '/';
+            } else {
+                errorDiv.innerText = data.error || t('invalid_credentials');
+                errorDiv.classList.remove('hidden');
+            }
+        } catch (err) {
+            errorDiv.innerText = t('network_error');
+            errorDiv.classList.remove('hidden');
+        }
+    });
+</script>
+{% endblock %}

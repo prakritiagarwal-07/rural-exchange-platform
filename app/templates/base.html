@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🌾 {{ t('app_name') }}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+    <nav class="bg-white shadow-md p-4">
+        <div class="container mx-auto flex flex-wrap justify-between items-center">
+            <a href="/" class="text-2xl font-bold text-green-700">🌾 {{ t('app_name') }}</a>
+            <div class="flex items-center space-x-4">
+                <!-- Language Switcher -->
+                <div class="flex items-center space-x-2 mr-4">
+                    <a href="/api/auth/set-language/en" class="text-sm {{ 'font-bold text-blue-600' if lang == 'en' else 'text-gray-500 hover:text-blue-600' }}">English</a>
+                    <span class="text-gray-300">|</span>
+                    <a href="/api/auth/set-language/hi" class="text-sm {{ 'font-bold text-blue-600' if lang == 'hi' else 'text-gray-500 hover:text-blue-600' }}">हिन्दी</a>
+                </div>
+
+                {% if is_logged_in and current_user %}
+                    <a href="
+                        {% if current_user.role == 'farmer' %}/farmer-dashboard
+                        {% elif current_user.role == 'owner' %}/owner-dashboard
+                        {% elif current_user.role == 'buyer' %}/buyer-dashboard
+                        {% elif current_user.role == 'admin' %}/admin-dashboard
+                        {% else %}/{% endif %}
+                    " class="text-blue-600 hover:text-blue-800 font-medium">📊 {{ t('dashboard') }}</a>
+
+                    <a href="/profile" class="text-gray-600 hover:text-gray-800">👤 {{ t('profile') }}</a>
+
+                    <button onclick="logout()" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition">
+                        {{ t('logout') }}
+                    </button>
+                {% else %}
+                    <a href="/login" class="text-blue-500 mr-4">{{ t('login') }}</a>
+                    <a href="/register" class="text-blue-500">{{ t('register') }}</a>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mx-auto p-4">
+        {% block content %}{% endblock %}
+    </div>
+
+    <script>
+        // ✅ RELIABLE: Embed translations using JSON.parse with safe escaping
+        const T = JSON.parse('{{ t_dict|tojson|safe }}');
+        
+        // Translation helper
+        function t(key) {
+            return T[key] || key;
+        }
+
+        // Logout function – works globally
+        async function logout() {
+            try {
+                await fetch('/api/auth/logout', { method: 'POST' });
+                window.location.href = '/login';
+            } catch (e) {
+                console.error('Logout error:', e);
+                window.location.href = '/login';
+            }
+        }
+
+        // Debug (remove in production)
+        console.log('✅ Translations loaded:', Object.keys(T).length, 'keys');
+        console.log('✅ t() and logout() are ready.');
+    </script>
+</body>
+</html>

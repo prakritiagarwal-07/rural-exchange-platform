@@ -1,0 +1,351 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="max-w-7xl mx-auto">
+    <h1 class="text-3xl font-bold text-green-700 mb-6">👨‍🌾 {{ t('farmer_dashboard') }}</h1>
+
+    <div id="userInfo" class="bg-white p-4 rounded-lg shadow mb-6"></div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        
+        <!-- COLUMN 1 -->
+        <div class="space-y-6">
+            <!-- List Residue -->
+            <div class="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
+                <h2 class="text-xl font-semibold text-purple-700 mb-4">🌾 {{ t('list_crop_residue') }}</h2>
+                <form id="addResidueForm" class="space-y-3">
+                    <input type="text" id="r_type" placeholder="{{ t('residue_type') }}" class="w-full p-2 border rounded-lg" required>
+                    <div class="flex gap-2">
+                        <input type="number" id="r_qty" placeholder="{{ t('quantity_kg') }}" step="0.01" class="w-1/2 p-2 border rounded-lg" required>
+                        <input type="number" id="r_price" placeholder="{{ t('price_per_kg') }}" step="0.01" class="w-1/2 p-2 border rounded-lg" required>
+                    </div>
+                    <textarea id="r_address" placeholder="{{ t('collection_address') }}" class="w-full p-2 border rounded-lg"></textarea>
+                    <button type="submit" class="w-full bg-purple-600 hover:bg-purple-700 text-white p-2 rounded-lg font-semibold transition">{{ t('list_for_sale') }}</button>
+                </form>
+                <div id="residueMsg" class="mt-2 text-sm"></div>
+            </div>
+
+            <!-- My Residue Listings -->
+            <div class="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-semibold text-gray-800">📦 {{ t('my_residue_listings') }}</h2>
+                    <button onclick="loadMyResidue()" class="text-sm bg-gray-200 hover:bg-gray-300 px-3 py-1 rounded">{{ t('refresh') }}</button>
+                </div>
+                <div id="myResidueListings" class="space-y-3 max-h-64 overflow-y-auto">
+                    <p class="text-gray-500">{{ t('loading') }}</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- COLUMN 2 -->
+        <div class="space-y-6">
+            <!-- Search Machinery -->
+            <div class="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
+                <h2 class="text-xl font-semibold text-blue-700 mb-4">🔍 {{ t('find_machinery') }}</h2>
+                <div class="flex gap-2">
+                    <input type="text" id="searchCategory" placeholder="{{ t('category') }}" class="flex-1 p-2 border rounded-lg">
+                    <button onclick="searchMachinery()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition">{{ t('search') }}</button>
+                </div>
+                <p id="locationStatus" class="text-xs text-gray-500 mt-1"></p>
+                <div id="machineryResults" class="mt-4 space-y-3 max-h-64 overflow-y-auto"></div>
+            </div>
+
+            <!-- My Bookings -->
+            <div class="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-semibold text-gray-800">📋 {{ t('my_bookings') }}</h2>
+                    <button onclick="loadBookings()" class="text-sm bg-gray-200 hover:bg-gray-300 px-3 py-1 rounded">{{ t('refresh') }}</button>
+                </div>
+                <div id="myBookings" class="space-y-3 max-h-64 overflow-y-auto"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- NEW: Incoming Residue Orders (Full Width) -->
+    <div class="mt-6 bg-white p-6 rounded-xl shadow-lg border border-gray-100">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-xl font-semibold text-orange-700">📦 {{ t('incoming_orders') }}</h2>
+            <button onclick="loadResidueOrders()" class="text-sm bg-gray-200 hover:bg-gray-300 px-3 py-1 rounded">{{ t('refresh') }}</button>
+        </div>
+        <div id="residueOrdersList" class="space-y-3 max-h-64 overflow-y-auto">
+            <p class="text-gray-500">{{ t('loading') }}</p>
+        </div>
+    </div>
+
+    <!-- Booking Modal (unchanged) -->
+    <div id="bookingForm" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center hidden z-50">
+        <div class="bg-white p-6 rounded-xl shadow-2xl max-w-md w-full">
+            <h3 class="text-lg font-bold mb-4">📅 {{ t('book_machinery') }}</h3>
+            <input type="hidden" id="bookMachineId">
+            <input type="date" id="startDate" class="w-full p-2 border rounded mb-3">
+            <input type="date" id="endDate" class="w-full p-2 border rounded mb-4">
+            <div class="flex gap-2">
+                <button onclick="submitBooking()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-lg transition">{{ t('book') }}</button>
+                <button onclick="document.getElementById('bookingForm').classList.add('hidden')" class="flex-1 bg-gray-300 hover:bg-gray-400 p-2 rounded-lg transition">{{ t('cancel') }}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Global variables
+    let currentUser = null;
+    let userLocation = null;
+
+    // ========== LOAD USER ==========
+    async function loadUser() {
+        try {
+            const res = await fetch('/api/auth/me');
+            if (res.ok) {
+                currentUser = await res.json();
+                userLocation = currentUser.location_lat && currentUser.location_lng 
+                    ? { lat: currentUser.location_lat, lng: currentUser.location_lng } 
+                    : null;
+                
+                const container = document.getElementById('userInfo');
+                let html = `<p class="font-medium">${t('welcome')}, <span class="text-green-600">${currentUser.full_name}</span>!</p>
+                            <p class="text-xs text-gray-500">${userLocation ? `📍 ${userLocation.lat}, ${userLocation.lng}` : '📍 ' + t('set_location')}</p>`;
+                
+                if (currentUser.is_machinery_owner) {
+                    html += `<a href="/owner-dashboard" class="inline-block mt-2 bg-yellow-500 text-white px-4 py-2 rounded-lg hover:bg-yellow-600 transition">🚜 ${t('switch_to_owner')}</a>`;
+                } else {
+                    html += `<button onclick="becomeOwner()" class="mt-2 bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition">⚡ ${t('become_owner')}</button>`;
+                }
+                container.innerHTML = html;
+                
+                document.getElementById('locationStatus').innerText = userLocation ? '📍 ' + t('showing_nearby') : '📍 ' + t('set_location');
+            } else {
+                window.location.href = '/login';
+            }
+        } catch (err) {
+            console.error('loadUser error:', err);
+        }
+    }
+
+    // ========== SEARCH MACHINERY ==========
+    async function searchMachinery() {
+        const cat = document.getElementById('searchCategory').value;
+        let url = `/api/machinery/?category=${cat}`;
+        if (userLocation) {
+            url += `&lat=${userLocation.lat}&lng=${userLocation.lng}&sort=distance&radius=50`;
+        }
+        try {
+            const res = await fetch(url);
+            const data = await res.json();
+            const container = document.getElementById('machineryResults');
+            if (data.length === 0) {
+                container.innerHTML = `<p class="text-gray-500">${t('no_machinery_found')}</p>`;
+                return;
+            }
+            container.innerHTML = data.map(m => {
+                const dist = m.distance !== null ? `${m.distance.toFixed(1)} ${t('km')}` : t('unknown_distance');
+                return `
+                <div class="border p-4 rounded-lg hover:shadow-md transition flex justify-between items-center">
+                    <div>
+                        <h4 class="font-bold">${m.name}</h4>
+                        <p class="text-sm text-gray-600">${m.category} | ₹${m.rental_price_per_day}/day</p>
+                        <p class="text-xs text-gray-500">📍 ${dist}</p>
+                        <span class="text-xs px-2 py-1 rounded-full ${m.availability ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">${m.availability ? t('available') : t('unavailable')}</span>
+                    </div>
+                    ${m.availability ? `<button onclick="showBooking(${m.id})" class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded-lg text-sm transition">${t('book')}</button>` : ''}
+                </div>
+            `}).join('');
+        } catch (err) {
+            console.error('searchMachinery error:', err);
+        }
+    }
+
+    // ========== ADD RESIDUE ==========
+    document.getElementById('addResidueForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const data = {
+            residue_type: document.getElementById('r_type').value,
+            quantity_kg: document.getElementById('r_qty').value,
+            price_per_kg: document.getElementById('r_price').value,
+            address: document.getElementById('r_address').value,
+            location_lat: userLocation ? userLocation.lat : null,
+            location_lng: userLocation ? userLocation.lng : null
+        };
+        try {
+            const res = await fetch('/api/residue/', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            });
+            const result = await res.json();
+            document.getElementById('residueMsg').innerHTML = `<span class="${res.ok ? 'text-green-600' : 'text-red-600'}">${result.message || result.error}</span>`;
+            if (res.ok) {
+                e.target.reset();
+                loadMyResidue();
+            }
+        } catch (err) {
+            console.error('addResidue error:', err);
+        }
+    });
+
+    // ========== MY RESIDUE LISTINGS ==========
+    async function loadMyResidue() {
+        const container = document.getElementById('myResidueListings');
+        container.innerHTML = `<p class="text-gray-500">${t('loading')}</p>`;
+        try {
+            const res = await fetch('/api/residue/mine');
+            if (!res.ok) {
+                container.innerHTML = `<p class="text-red-500">Error ${res.status}</p>`;
+                return;
+            }
+            const data = await res.json();
+            if (data.length === 0) {
+                container.innerHTML = `<p class="text-gray-500">${t('no_residue_listings')}</p>`;
+                return;
+            }
+            container.innerHTML = data.map(l => `
+                <div class="border p-3 rounded-lg bg-gray-50 flex justify-between items-center">
+                    <div>
+                        <p class="font-bold">${l.residue_type}</p>
+                        <p class="text-sm">${l.quantity_kg} kg | ₹${l.price_per_kg}/kg</p>
+                        <p class="text-xs ${l.available ? 'text-green-600' : 'text-red-600'}">${l.available ? t('available') : t('sold_out')}</p>
+                    </div>
+                    ${l.available ? `<button onclick="markSold(${l.id})" class="bg-red-500 hover:bg-red-600 text-white text-xs px-2 py-1 rounded">${t('mark_sold')}</button>` : ''}
+                </div>
+            `).join('');
+        } catch (err) {
+            container.innerHTML = `<p class="text-red-500">${t('network_error')}</p>`;
+        }
+    }
+
+    async function markSold(id) {
+        if (!confirm(t('mark_sold') + '?')) return;
+        try {
+            const res = await fetch(`/api/residue/${id}/close`, { method: 'PUT' });
+            const data = await res.json();
+            alert(data.message || data.error);
+            if (res.ok) loadMyResidue();
+        } catch (err) {
+            console.error('markSold error:', err);
+        }
+    }
+
+    // ========== INCOMING RESIDUE ORDERS (NEW) ==========
+    async function loadResidueOrders() {
+        const container = document.getElementById('residueOrdersList');
+        container.innerHTML = `<p class="text-gray-500">${t('loading')}</p>`;
+        try {
+            const res = await fetch('/api/residue/orders');
+            if (!res.ok) {
+                container.innerHTML = `<p class="text-red-500">Error ${res.status}</p>`;
+                return;
+            }
+            const data = await res.json();
+            if (data.length === 0) {
+                container.innerHTML = `<p class="text-gray-500">${t('no_orders')}</p>`;
+                return;
+            }
+            container.innerHTML = data.map(o => `
+                <div class="border p-3 rounded-lg bg-gray-50 flex justify-between items-center">
+                    <div>
+                        <p class="font-bold">${o.residue_type}</p>
+                        <p class="text-sm">${o.quantity_kg} kg | ₹${o.total_price}</p>
+                        <p class="text-xs font-bold ${o.status === 'pending' ? 'text-yellow-600' : 'text-green-600'}">${o.status}</p>
+                    </div>
+                    ${o.status === 'pending' ? `
+                        <div class="flex gap-2">
+                            <button onclick="respondResidueOrder(${o.id}, 'accept')" class="bg-green-500 hover:bg-green-600 text-white text-xs px-2 py-1 rounded">${t('accept')}</button>
+                            <button onclick="respondResidueOrder(${o.id}, 'reject')" class="bg-red-500 hover:bg-red-600 text-white text-xs px-2 py-1 rounded">${t('reject')}</button>
+                        </div>
+                    ` : ''}
+                </div>
+            `).join('');
+        } catch (err) {
+            container.innerHTML = `<p class="text-red-500">${t('network_error')}</p>`;
+        }
+    }
+
+    async function respondResidueOrder(id, action) {
+        if (!confirm(t('confirm_action') + '?')) return;
+        try {
+            const res = await fetch(`/api/residue/orders/${id}/respond`, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({action})
+            });
+            const data = await res.json();
+            alert(data.message || data.error);
+            if (res.ok) {
+                loadResidueOrders();
+                loadMyResidue(); // update quantity if accepted
+            }
+        } catch (err) {
+            console.error('respondResidueOrder error:', err);
+        }
+    }
+
+    // ========== BOOKING ==========
+    function showBooking(id) {
+        document.getElementById('bookMachineId').value = id;
+        document.getElementById('bookingForm').classList.remove('hidden');
+    }
+
+    async function submitBooking() {
+        const id = document.getElementById('bookMachineId').value;
+        const start = document.getElementById('startDate').value;
+        const end = document.getElementById('endDate').value;
+        if (!start || !end) { alert(t('select_dates')); return; }
+        try {
+            const res = await fetch(`/api/machinery/${id}/book`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({start_date: start, end_date: end})
+            });
+            const data = await res.json();
+            alert(data.message || data.error);
+            if (res.ok) {
+                document.getElementById('bookingForm').classList.add('hidden');
+                loadBookings();
+            }
+        } catch (err) {
+            console.error('submitBooking error:', err);
+        }
+    }
+
+    // ========== MY BOOKINGS ==========
+    async function loadBookings() {
+        try {
+            const res = await fetch('/api/machinery/bookings');
+            const data = await res.json();
+            const container = document.getElementById('myBookings');
+            if (data.length === 0) {
+                container.innerHTML = `<p class="text-gray-500">${t('no_bookings')}</p>`;
+                return;
+            }
+            container.innerHTML = data.map(b => `
+                <div class="border-l-4 ${b.status === 'pending' ? 'border-yellow-400' : b.status === 'accepted' ? 'border-green-400' : 'border-red-400'} bg-gray-50 p-3 rounded-r-lg">
+                    <p class="font-semibold">${b.machinery_name}</p>
+                    <p class="text-sm">${b.start_date} to ${b.end_date} | ₹${b.total_price}</p>
+                    <p class="text-xs font-medium uppercase ${b.status === 'pending' ? 'text-yellow-600' : b.status === 'accepted' ? 'text-green-600' : 'text-red-600'}">${b.status}</p>
+                </div>
+            `).join('');
+        } catch (err) {
+            console.error('loadBookings error:', err);
+        }
+    }
+
+    // ========== BECOME OWNER ==========
+    async function becomeOwner() {
+        try {
+            const res = await fetch('/api/auth/become-owner', { method: 'POST' });
+            const data = await res.json();
+            alert(data.message || data.error);
+            if (res.ok) location.reload();
+        } catch (err) {
+            console.error('becomeOwner error:', err);
+        }
+    }
+
+    // ========== ON PAGE LOAD ==========
+    window.onload = function() {
+        loadUser();
+        loadBookings();
+        loadMyResidue();
+        loadResidueOrders();  // Load incoming orders
+    };
+</script>
+{% endblock %}
