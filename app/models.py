@@ -11,7 +11,11 @@ class User(db.Model):
     location_lat = db.Column(db.DECIMAL(10,8))
     location_lng = db.Column(db.DECIMAL(11,8))
     address = db.Column(db.Text)
-    role = db.Column(db.Enum('farmer', 'owner', 'buyer', 'admin'), default='farmer')
+    # FIXED: Added name='user_role_enum'
+    role = db.Column(
+        db.Enum('farmer', 'owner', 'buyer', 'admin', name='user_role_enum'),
+        default='farmer'
+    )
     is_machinery_owner = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -48,7 +52,11 @@ class Booking(db.Model):
     start_date = db.Column(db.Date, nullable=False)
     end_date = db.Column(db.Date, nullable=False)
     total_price = db.Column(db.DECIMAL(10,2), nullable=False)
-    status = db.Column(db.Enum('pending','accepted','rejected','completed','cancelled'), default='pending')
+    # FIXED: Added name='booking_status_enum'
+    status = db.Column(
+        db.Enum('pending', 'accepted', 'rejected', 'completed', 'cancelled', name='booking_status_enum'),
+        default='pending'
+    )
     booking_date = db.Column(db.DateTime, default=datetime.utcnow)
     machinery = db.relationship('Machinery', backref='bookings')
     farmer = db.relationship('User', backref='my_bookings')
@@ -75,7 +83,11 @@ class ResidueOrder(db.Model):
     buyer_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     quantity_kg = db.Column(db.DECIMAL(10,2), nullable=False)
     total_price = db.Column(db.DECIMAL(10,2), nullable=False)
-    status = db.Column(db.Enum('pending','accepted','rejected','completed'), default='pending')
+    # FIXED: Added name='residue_order_status_enum'
+    status = db.Column(
+        db.Enum('pending', 'accepted', 'rejected', 'completed', name='residue_order_status_enum'),
+        default='pending'
+    )
     order_date = db.Column(db.DateTime, default=datetime.utcnow)
     listing = db.relationship('ResidueListing', backref='orders')
     buyer = db.relationship('User', backref='residue_orders')
